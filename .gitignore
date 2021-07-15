@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Idea files
+.idea/
+
+# Debugging cache files
+avito.pickle
+last_position.txt
