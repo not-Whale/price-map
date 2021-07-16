@@ -29,22 +29,22 @@ district_name = ''
 headers = {'user-agent': USER_AGENT}
 
 
-def parse_avito(first_id=0):
-    global start_district_number, start_id
-
-    start_id = first_id
+def parse_avito():
+    global start_district_number, start_id, start_page_number
 
     # Если программа запускается не в первый раз, то продолжить
     # с места остановки после прошлого запуска
     check_last_position()
 
-    # range(start_district_number, LAST_DISTRICT_NUMBER + 1)
     # Перебор всех страниц с объявлениями рядом с различными станциями метро
-    for i in range(616, 617):
+    for i in range(start_district_number, LAST_DISTRICT_NUMBER + 1):
+        if i != start_district_number:
+            start_page_number = 1
         parse_district(i)
         start_district_number = i
         # Ожидание
-        time.sleep(randint(-10, 10) + 300)
+        if i != LAST_DISTRICT_NUMBER:
+            time.sleep(randint(-10, 10) + 300)
 
     # В случае ошибки доступа повторная попытка обработки данных страниц
     # (пока все не будут обработаны)
@@ -52,7 +52,8 @@ def parse_avito(first_id=0):
         parse_district(main_page_second_parse[0])
         main_page_second_parse.pop(0)
         # Ожидание
-        time.sleep(randint(-10, 10) + 300)
+        if len(main_page_second_parse) != 0:
+            time.sleep(randint(-10, 10) + 300)
 
 
 def parse_district(district_number):
@@ -62,18 +63,18 @@ def parse_district(district_number):
     params = {'district': f'{district_number}', 'p': '1', 's': '1'}
     html = get_html(url, params)
 
-    # Ожидание
-    time.sleep(random() * 5 + 10)
-
     if html is not None:
         pages_amount = get_pages_amount(html)
-        district_name = get_district_name(html)
         if pages_amount != 0:
+            district_name = get_district_name(html)
             parse_district_pages(district_number, pages_amount, html)
         else:
             main_page_second_parse.append(district_number)
             # Ожидание (скорее всего вместо нужной страницы получена капча)
-            time.sleep(randint(-10, 10) + 120)
+            time.sleep(randint(-10, 10) + 60)
+
+    # Ожидание
+    time.sleep(random() * 5 + 10)
 
 
 def get_pages_amount(html):
@@ -87,7 +88,7 @@ def get_pages_amount(html):
 
     # Выделение номера последней страницы
     last_page = pages_div.find_all('span', class_='pagination-item-1WyVp')
-    last_page_number = last_page[len(last_page) - 2].contents[0]
+    last_page_number = int(last_page[len(last_page) - 2].contents[0].strip())
 
     return last_page_number
 
@@ -114,18 +115,19 @@ def parse_district_pages(district_number, pages_amount, first_page):
     else:
         parse_offers_page(district_number, start_page_number)
 
-    # range(start_page_number + 1, pages_amount + 1)
-    for i in range(2, 2):
-        parse_offers_page(district_number, i)
+    for i in range(start_page_number + 1, pages_amount + 1):
         start_page_number = i
+        parse_offers_page(district_number, i)
         # Ожидание
-        time.sleep(randint(-10, 10) + 60)
+        if i != pages_amount + 1:
+            time.sleep(randint(-5, 5) + 30)
 
     while len(offers_page_second_parse) != 0:
         parse_offers_page(district_number, offers_page_second_parse[0])
         offers_page_second_parse[0].pop()
         # Ожидание
-        time.sleep(randint(-10, 10) + 60)
+        if len(offers_page_second_parse) != 0:
+            time.sleep(randint(-5, 5) + 30)
 
 
 def parse_offers_page(district_number, current_page, html=None):
@@ -166,13 +168,7 @@ def parse_offers_list(offers):
         parse_offer(AVITO_URL + offer_url_part)
 
         # Ожидание между обработкой объявлений
-        time.sleep(randint(-5, 5) + 15)
-
-    # Запись всех квартир со страницы в файл
-    with open('avito.pickle', 'ab+') as buff:
-        for f in flat_list:
-            pickle.dump(f, buff)
-        flat_list.clear()
+        time.sleep(randint(-5, 5) + 10)
 
     # Сохранение состояния
     save_last_position()
@@ -204,10 +200,6 @@ def parse_offer(offer_url):
 
     # Добавление квартиры в список квартир
     flat_list.append(flat)
-
-    # Запись квартиры в буферный файл
-    # with open('avito.json', 'a+', encoding='utf-8') as f:
-    #    print(flat, file=f)
 
     # Вывод на экран (для отладки)
     print(flat)
@@ -291,14 +283,15 @@ def check_last_position():
             start_district_number = int(lp.readline().strip())
             start_page_number = int(lp.readline().strip())
             start_id = int(lp.readline().strip())
-            # for _ in range(start_id):
-            #    f = pickle.load(avito)
-            #    print(f)
 
 
 # Сохранение состояния в случае завершения работы программы
 @atexit.register
 def save_last_position():
+    with open('avito.pickle', 'ab+') as buff:
+        for f in flat_list:
+            pickle.dump(f, buff)
+        flat_list.clear()
     start_district_number_old = 0
     start_page_number_old = 0
     start_id_old = 0
