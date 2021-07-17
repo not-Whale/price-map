@@ -1,5 +1,4 @@
 import time
-import atexit
 import pickle
 import requests
 import bs4.element
@@ -34,30 +33,31 @@ def parse_avito():
 
     # Если программа запускается не в первый раз, то продолжить
     # с места остановки после прошлого запуска
-    check_last_position()
+    load_last_position()
 
     # Перебор всех страниц с объявлениями рядом с различными станциями метро
     for i in range(start_district_number, LAST_DISTRICT_NUMBER + 1):
-        if i != start_district_number:
-            start_page_number = 1
-        parse_district(i)
         start_district_number = i
+        parse_district(i)
+        start_page_number = 1
+        save_last_position()
         # Ожидание
         if i != LAST_DISTRICT_NUMBER:
-            time.sleep(randint(-10, 10) + 300)
+            time.sleep(randint(-10, 10) + 120)
 
     # В случае ошибки доступа повторная попытка обработки данных страниц
     # (пока все не будут обработаны)
     while len(main_page_second_parse) != 0:
         parse_district(main_page_second_parse[0])
         main_page_second_parse.pop(0)
+        start_page_number = 1
         # Ожидание
         if len(main_page_second_parse) != 0:
-            time.sleep(randint(-10, 10) + 300)
+            time.sleep(randint(-10, 10) + 180)
 
 
 def parse_district(district_number):
-    global district_name
+    global start_page_number
 
     url = f'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ'
     params = {'district': f'{district_number}', 'p': '1', 's': '1'}
@@ -66,7 +66,7 @@ def parse_district(district_number):
     if html is not None:
         pages_amount = get_pages_amount(html)
         if pages_amount != 0:
-            district_name = get_district_name(html)
+            set_district_name(html)
             parse_district_pages(district_number, pages_amount, html)
         else:
             main_page_second_parse.append(district_number)
@@ -93,7 +93,9 @@ def get_pages_amount(html):
     return last_page_number
 
 
-def get_district_name(html):
+def set_district_name(html):
+    global district_name
+
     # Поиск заголовка с названием района
     district_h = html.find('h1', class_='page-title-text-WxwN3 page-title-inline-2v2CW')
 
@@ -104,7 +106,7 @@ def get_district_name(html):
 
     # Выделение названия самого района
     district_phrase_split = district_h.text.split(' ')
-    return district_phrase_split[len(district_phrase_split) - 1]
+    district_name = district_phrase_split[len(district_phrase_split) - 1]
 
 
 def parse_district_pages(district_number, pages_amount, first_page):
@@ -119,7 +121,7 @@ def parse_district_pages(district_number, pages_amount, first_page):
         start_page_number = i
         parse_offers_page(district_number, i)
         # Ожидание
-        if i != pages_amount + 1:
+        if i != pages_amount:
             time.sleep(randint(-5, 5) + 30)
 
     while len(offers_page_second_parse) != 0:
@@ -144,6 +146,9 @@ def parse_offers_page(district_number, current_page, html=None):
         offers = html.find_all('div', {'data-marker': 'item'})
         if len(offers) != 0:
             parse_offers_list(offers)
+        else:
+            print(f'Warning! Can\'t find offers on page!')
+            offers_page_second_parse.append(current_page)
     else:
         print(f'Warning! Offers page is empty!')
         offers_page_second_parse.append(current_page)
@@ -186,7 +191,7 @@ def parse_offer(offer_url):
     flat = Flat()
 
     # Заполнение объекта с информацией о квартире
-    get_flat_info(html, flat)
+    set_flat_info(html, flat)
 
     # Заполнение названия района в объекте квартиры
     flat.district = district_name
@@ -205,13 +210,13 @@ def parse_offer(offer_url):
     print(flat)
 
 
-def get_flat_info(html, flat):
-    get_price(html, flat)
-    get_address(html, flat)
-    get_floor_rooms_square(html, flat)
+def set_flat_info(html, flat):
+    set_price(html, flat)
+    set_address(html, flat)
+    set_floor_rooms_square(html, flat)
 
 
-def get_floor_rooms_square(html, flat):
+def set_floor_rooms_square(html, flat):
     # Выделение списка с параметрами квартиры
     info_ul = html.find('ul', class_='item-params-list')
 
@@ -231,7 +236,7 @@ def get_floor_rooms_square(html, flat):
                 flat.square = float(value.split('\xa0')[0])
 
 
-def get_price(html, flat):
+def set_price(html, flat):
     # Поиск span с ценой
     price_span = html.find('span', class_='js-item-price')
 
@@ -239,7 +244,7 @@ def get_price(html, flat):
     flat.price = int(price_span.text.replace('\xa0', ''))
 
 
-def get_address(html, flat):
+def set_address(html, flat):
     # Поиск span с адресом квартиры
     address = html.find('span', class_='item-address__string').text
 
@@ -269,24 +274,28 @@ def get_html(url, params):
     if response.status_code != 200:
         print(f'Error! HTTP status code: {response.status_code}')
         if response.status_code == 429:
-            save_last_position()
             exit()
         return None
     return BeautifulSoup(response.text, 'lxml')
 
 
 # Восстановление последнего состояния после прошлого запуска программы
-def check_last_position():
+def load_last_position():
     global start_district_number, start_page_number, start_id
     if path.exists('last_position.txt') and path.exists('avito.pickle'):
         with open('last_position.txt', 'r', encoding='utf-8') as lp:
             start_district_number = int(lp.readline().strip())
             start_page_number = int(lp.readline().strip())
             start_id = int(lp.readline().strip())
+            print(f'Last position loaded.\n'
+                  f'District: {start_district_number - 615};\n'
+                  f'Page: {start_page_number};\n'
+                  f'Last ID: {start_id}.')
+    else:
+        print(f'Nothing to load.')
 
 
-# Сохранение состояния в случае завершения работы программы
-@atexit.register
+# Сохранение состояния
 def save_last_position():
     with open('avito.pickle', 'ab+') as buff:
         for f in flat_list:
@@ -300,10 +309,27 @@ def save_last_position():
             start_district_number_old = int(lp.readline().strip())
             start_page_number_old = int(lp.readline().strip())
             start_id_old = int(lp.readline().strip())
+
+    print(f'Flats saved.')
+
     with open('last_position.txt', 'w+', encoding='utf-8') as lp:
-        lp.write(f'{max(start_district_number_old, start_district_number)}\n'
-                 f'{max(start_page_number_old, start_page_number)}\n'
-                 f'{max(start_id_old, start_id)}')
+        if start_district_number_old > start_district_number:
+            lp.write(f'{start_district_number_old}\n'
+                     f'{start_page_number_old}\n')
+
+            print(f'District: {start_district_number_old};\n'
+                  f'Page: {start_page_number_old};')
+
+        else:
+            lp.write(f'{start_district_number}\n'
+                     f'{start_page_number}\n')
+
+            print(f'District: {start_district_number};\n'
+                  f'Page: {start_page_number};')
+
+        lp.write(f'{max(start_id_old, start_id)}')
+
+        print(f'Last ID: {max(start_id_old, start_id)}.')
 
 
 if __name__ == '__main__':
