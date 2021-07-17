@@ -29,6 +29,11 @@ headers = {'user-agent': USER_AGENT}
 
 
 def parse_avito():
+    """
+    Управляет обработкой всех объявлений о продаже недвижимости в Москве.
+
+    :return:
+    """
     global start_district_number, start_id, start_page_number
 
     # Если программа запускается не в первый раз, то продолжить
@@ -57,6 +62,13 @@ def parse_avito():
 
 
 def parse_district(district_number):
+    """
+    Управляет обработкой страниц предложений для определенного района.
+
+    :param district_number: номер района для обработки
+    :type district_number: int
+    :return:
+    """
     global start_page_number
 
     url = f'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ'
@@ -78,6 +90,14 @@ def parse_district(district_number):
 
 
 def get_pages_amount(html):
+    """
+    Возвращает количество страниц предложений для данного района.
+
+    :param html: первая страница предложений
+    :type html: BeautifulSoup
+    :return: количество страниц предложений
+    :rtype: int
+    """
     # Поиск div-обертки полосы прокрутки страниц
     pages_div = html.find('div', class_='pagination-root-2oCjZ')
 
@@ -94,6 +114,15 @@ def get_pages_amount(html):
 
 
 def set_district_name(html):
+    """
+    Выделяет название района со страницы предложений и записывает его в district_name.
+
+    Внимание! Изменяет значение глобальной переменной district_name.
+
+    :param html: страница предложений
+    :type html: BeautifulSoup
+    :return:
+    """
     global district_name
 
     # Поиск заголовка с названием района
@@ -110,6 +139,17 @@ def set_district_name(html):
 
 
 def parse_district_pages(district_number, pages_amount, first_page):
+    """
+    Проходит по всем страницам предложений для одного района, вызывает parse_offers_page для каждой из них.
+
+    :param district_number: номер района
+    :type district_number: int
+    :param pages_amount: количество страниц предложений для данного района
+    :type pages_amount: int
+    :param first_page: первая страница предложений, загруженная ранее
+    :type first_page: BeautifulSoup
+    :return:
+    """
     global start_page_number
 
     if start_page_number == 1:
@@ -133,6 +173,17 @@ def parse_district_pages(district_number, pages_amount, first_page):
 
 
 def parse_offers_page(district_number, current_page, html=None):
+    """
+    Выделяет со страницы предложений список объявлений и вызывает parse_offers_list для него.
+
+    :param district_number: номер района
+    :type district_number: int
+    :param current_page: номер страницы предложений
+    :type current_page: int
+    :param html: страница для обработки, defaults to None
+    :type html: BeautifulSoup, optional
+    :return:
+    """
     # Если это не первая страница или первая страница не передается,
     # тогда идет запрос, иначе обработка уже полученной страницы
     if current_page != 1 or html is None:
@@ -157,6 +208,13 @@ def parse_offers_page(district_number, current_page, html=None):
 
 
 def parse_offers_list(offers):
+    """
+    Обрабатывает список объявлений на одной странице предложений и вызывает сохранение состояния после обработки.
+
+    :param offers: список объявлений с одной страницы
+    :type offers: list
+    :return:
+    """
     for offer in offers:
         # Поиск div-обертки названия-ссылки объявления
         offer_div = offer.find('div', class_='iva-item-titleStep-2bjuh')
@@ -180,6 +238,13 @@ def parse_offers_list(offers):
 
 
 def parse_offer(offer_url):
+    """
+    Парсит страницу объявления и добавляет объект flat в список квартир.
+
+    :param offer_url: ссылка на страницу объявления
+    :type offer_url: str
+    :return:
+    """
     global start_id
 
     # Открытие страницы объявления
@@ -211,12 +276,30 @@ def parse_offer(offer_url):
 
 
 def set_flat_info(html, flat):
+    """
+    Определяет и устанавливает в объекте flat информацию о квартире по странице объявления html.
+
+    :param html: страница объявления
+    :type html: BeautifulSoup
+    :param flat: объект квартры
+    :type flat: Flat
+    :return:
+    """
     set_price(html, flat)
     set_address(html, flat)
     set_floor_rooms_square(html, flat)
 
 
 def set_floor_rooms_square(html, flat):
+    """
+    Определяет и устанавливает в объекте flat этаж, количество комнат и площадь квартиры по странице объявления html.
+
+    :param html: страница объявления
+    :type html: BeautifulSoup
+    :param flat: объект квартры
+    :type flat: Flat
+    :return:
+    """
     # Выделение списка с параметрами квартиры
     info_ul = html.find('ul', class_='item-params-list')
 
@@ -237,6 +320,15 @@ def set_floor_rooms_square(html, flat):
 
 
 def set_price(html, flat):
+    """
+    Определяет и устанавливает в объекте flat цену квартиры по странице объявления html.
+
+    :param html: страница объявления
+    :type html: BeautifulSoup
+    :param flat: объект квартры
+    :type flat: Flat
+    :return:
+    """
     # Поиск span с ценой
     price_span = html.find('span', class_='js-item-price')
 
@@ -245,6 +337,15 @@ def set_price(html, flat):
 
 
 def set_address(html, flat):
+    """
+    Определяет и устанавливает в объекте flat адрес квартиры по странице объявления html.
+
+    :param html: страница объявления
+    :type html: BeautifulSoup
+    :param flat: объект квартры
+    :type flat: Flat
+    :return:
+    """
     # Поиск span с адресом квартиры
     address = html.find('span', class_='item-address__string').text
 
@@ -270,6 +371,16 @@ def set_address(html, flat):
 
 # Получение html-страницы
 def get_html(url, params):
+    """
+    Возвращает страницу, находяющуся по переданному адресу.
+
+    :param url: адрес страницы запроса
+    :type url: str
+    :param params: параметры запроса
+    :type params: dict
+    :return: объект BeautifulSoup страницы
+    :rtype: BeautifulSoup|None
+    """
     response = requests.get(url, params=params, headers=headers)
     if response.status_code != 200:
         print(f'Error! HTTP status code: {response.status_code}')
@@ -281,6 +392,14 @@ def get_html(url, params):
 
 # Восстановление последнего состояния после прошлого запуска программы
 def load_last_position():
+    """
+    Загружает состояние парсера, если оно было сохранено ранее.
+
+    Внимание! Изменяет значения глобальных переменных
+    start_district_number, start_page_number и start_id.
+
+    :return:
+    """
     global start_district_number, start_page_number, start_id
     if path.exists('last_position.txt') and path.exists('avito.pickle'):
         with open('last_position.txt', 'r', encoding='utf-8') as lp:
@@ -297,6 +416,15 @@ def load_last_position():
 
 # Сохранение состояния
 def save_last_position():
+    """
+    Сохраняет состояние парсера на данный момент.
+
+    Предусматривает случай первого и повторного обхода районов.
+    Дополяет список квартир и сохраняет номера района, страницы
+    предложений внутри района и последний id квартиры.
+
+    :return:
+    """
     with open('avito.pickle', 'ab+') as buff:
         for f in flat_list:
             pickle.dump(f, buff)
