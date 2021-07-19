@@ -44,8 +44,9 @@ def parse_avito():
     for i in range(start_district_number, LAST_DISTRICT_NUMBER + 1):
         start_district_number = i
         parse_district(i)
-        start_page_number = 1
+        start_page_number = 0
         save_last_position()
+        start_page_number = 1
         # Ожидание
         if i != LAST_DISTRICT_NUMBER:
             time.sleep(randint(-10, 10) + 120)
@@ -154,7 +155,7 @@ def parse_district_pages(district_number, pages_amount, first_page):
 
     if start_page_number == 1:
         parse_offers_page(district_number, 1, first_page)
-    else:
+    elif start_page_number <= pages_amount:
         parse_offers_page(district_number, start_page_number)
 
     for i in range(start_page_number + 1, pages_amount + 1):
@@ -215,6 +216,10 @@ def parse_offers_list(offers):
     :type offers: list
     :return:
     """
+
+    # Для подсчета количества обработанных квартир
+    first_id = start_id
+
     for offer in offers:
         # Поиск div-обертки названия-ссылки объявления
         offer_div = offer.find('div', class_='iva-item-titleStep-2bjuh')
@@ -233,8 +238,11 @@ def parse_offers_list(offers):
         # Ожидание между обработкой объявлений
         time.sleep(randint(-5, 5) + 10)
 
+    print(f'Обработано(-а) {start_id - first_id} квартир(-а/-ы).')
+
     # Сохранение состояния
     save_last_position()
+    save_flats_list()
 
 
 def parse_offer(offer_url):
@@ -256,23 +264,25 @@ def parse_offer(offer_url):
     flat = Flat()
 
     # Заполнение объекта с информацией о квартире
-    set_flat_info(html, flat)
+    if set_flat_info(html, flat):
 
-    # Заполнение названия района в объекте квартиры
-    flat.district = district_name
+        # Заполнение названия района в объекте квартиры
+        flat.district = district_name
 
-    # Заполнение индивидуального номера квартиры
-    flat.id = start_id
-    start_id += 1
+        # Заполнение индивидуального номера квартиры
+        flat.id = start_id
+        start_id += 1
 
-    # Заполнение ссылки на квартиру
-    flat.url = offer_url
+        # Заполнение ссылки на квартиру
+        flat.url = offer_url
 
-    # Добавление квартиры в список квартир
-    flat_list.append(flat)
+        # Добавление квартиры в список квартир
+        flat_list.append(flat)
 
-    # Вывод на экран (для отладки)
-    print(flat)
+        # Вывод на экран (для отладки)
+        print(flat)
+    else:
+        print(f'Error! Offer ({offer_url}) has not enough info!')
 
 
 def set_flat_info(html, flat):
@@ -283,11 +293,10 @@ def set_flat_info(html, flat):
     :type html: BeautifulSoup
     :param flat: объект квартры
     :type flat: Flat
-    :return:
+    :return: удачно ли выполнены поиск и выделение информации о квартире
+    :rtype: bool
     """
-    set_price(html, flat)
-    set_address(html, flat)
-    set_floor_rooms_square(html, flat)
+    return set_price(html, flat) and set_address(html, flat) and set_floor_rooms_square(html, flat)
 
 
 def set_floor_rooms_square(html, flat):
@@ -298,10 +307,14 @@ def set_floor_rooms_square(html, flat):
     :type html: BeautifulSoup
     :param flat: объект квартры
     :type flat: Flat
-    :return:
+    :return: удачно ли выполнены поиск и выделение этажа, комнатности и квадратуры
+    :rtype: bool
     """
     # Выделение списка с параметрами квартиры
     info_ul = html.find('ul', class_='item-params-list')
+
+    if info_ul is None:
+        return False
 
     # Перебор параметров с поиском в них информации об этаже,
     # количестве комнат и общей площади квартиры
@@ -318,6 +331,8 @@ def set_floor_rooms_square(html, flat):
             if key == 'Общая площадь:':
                 flat.square = float(value.split('\xa0')[0])
 
+    return True
+
 
 def set_price(html, flat):
     """
@@ -327,13 +342,19 @@ def set_price(html, flat):
     :type html: BeautifulSoup
     :param flat: объект квартры
     :type flat: Flat
-    :return:
+    :return: удачно ли выполнены поиск и выделение цены
+    :rtype: bool
     """
     # Поиск span с ценой
     price_span = html.find('span', class_='js-item-price')
 
+    if price_span is None:
+        return False
+
     # Выделение стоимости квартиры из него
     flat.price = int(price_span.text.replace('\xa0', ''))
+
+    return True
 
 
 def set_address(html, flat):
@@ -344,10 +365,14 @@ def set_address(html, flat):
     :type html: BeautifulSoup
     :param flat: объект квартры
     :type flat: Flat
-    :return:
+    :return: удачно ли выполнены поиск и выделение адреса
+    :rtype: bool
     """
     # Поиск span с адресом квартиры
     address = html.find('span', class_='item-address__string').text
+
+    if address is None:
+        return False
 
     # Разбиение адреса на слова по запятой
     address_split = address.split(',')
@@ -355,6 +380,9 @@ def set_address(html, flat):
     # Удаление города из адреса
     if address_split[0].strip() == "Москва":
         address_split.pop(0)
+
+    if len(address_split) == 0:
+        return False
 
     # Заполнение улицы
     flat.street = address_split[0].strip()
@@ -367,6 +395,8 @@ def set_address(html, flat):
 
     # Выделение ближайшей к квартире станции метро
     flat.metro = html.find('span', class_='item-address-georeferences-item__content').text.strip()
+
+    return True
 
 
 # Получение html-страницы
@@ -404,11 +434,11 @@ def load_last_position():
     if path.exists('last_position.txt') and path.exists('avito.pickle'):
         with open('last_position.txt', 'r', encoding='utf-8') as lp:
             start_district_number = int(lp.readline().strip())
-            start_page_number = int(lp.readline().strip())
+            start_page_number = int(lp.readline().strip()) + 1
             start_id = int(lp.readline().strip())
             print(f'Last position loaded.\n'
                   f'District: {start_district_number - 615};\n'
-                  f'Page: {start_page_number};\n'
+                  f'Page: {start_page_number - 1};\n'
                   f'Last ID: {start_id}.')
     else:
         print(f'Nothing to load.')
@@ -420,15 +450,11 @@ def save_last_position():
     Сохраняет состояние парсера на данный момент.
 
     Предусматривает случай первого и повторного обхода районов.
-    Дополяет список квартир и сохраняет номера района, страницы
-    предложений внутри района и последний id квартиры.
+    Сохраняет номера района, страницы предложений внутри района
+    и последний id квартиры.
 
     :return:
     """
-    with open('avito.pickle', 'ab+') as buff:
-        for f in flat_list:
-            pickle.dump(f, buff)
-        flat_list.clear()
     start_district_number_old = 0
     start_page_number_old = 0
     start_id_old = 0
@@ -438,7 +464,7 @@ def save_last_position():
             start_page_number_old = int(lp.readline().strip())
             start_id_old = int(lp.readline().strip())
 
-    print(f'Flats saved.')
+    print(f'\nLast position saved.')
 
     with open('last_position.txt', 'w+', encoding='utf-8') as lp:
         if start_district_number_old > start_district_number:
@@ -457,7 +483,21 @@ def save_last_position():
 
         lp.write(f'{max(start_id_old, start_id)}')
 
-        print(f'Last ID: {max(start_id_old, start_id)}.')
+        print(f'Last ID: {max(start_id_old, start_id)}.\n')
+
+
+def save_flats_list():
+    """
+    Дополняет список квартир теми, что были разобраны на данный момент.
+
+    :return:
+    """
+    with open('avito.pickle', 'ab+') as buff:
+        for f in flat_list:
+            pickle.dump(f, buff)
+        flat_list.clear()
+
+    print('Flats list saved.')
 
 
 if __name__ == '__main__':
