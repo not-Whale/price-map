@@ -195,6 +195,7 @@ def parse_offers_page(district_number, current_page, html=None):
     # Если полученная страница не пуста, то поиск объявлений на ней,
     # иначе добавление страницы в очередь на повторный разбор
     if html is not None:
+        delete_vip_blocks(html)
         offers = html.find_all('div', {'data-marker': 'item'})
         if len(offers) != 0:
             parse_offers_list(offers)
@@ -206,6 +207,22 @@ def parse_offers_page(district_number, current_page, html=None):
         offers_page_second_parse.append(current_page)
         # Ожидание (скорее всего вместо нужной страницы получена капча)
         time.sleep(randint(-10, 10) + 60)
+
+
+def delete_vip_blocks(html):
+    """
+    Находит и удаляет VIP-предложения со страницы предложений.
+
+    :param html: страница предложений
+    :type html: BeautifulSoup
+    :return:
+    """
+    add_block = html.find('div', class_='items-vip-1naL1')
+
+    if add_block is None:
+        return
+
+    add_block.decompose()
 
 
 def parse_offers_list(offers):
@@ -438,7 +455,7 @@ def load_last_position():
             start_id = int(lp.readline().strip())
             print(f'Last position loaded.\n'
                   f'District: {start_district_number - 615};\n'
-                  f'Page: {start_page_number - 1};\n'
+                  f'Page: {start_page_number};\n'
                   f'Last ID: {start_id}.')
     else:
         print(f'Nothing to load.')
