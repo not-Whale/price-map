@@ -86,9 +86,6 @@ def parse_district(district_number):
             # Ожидание (скорее всего вместо нужной страницы получена капча)
             time.sleep(randint(-10, 10) + 60)
 
-    # Ожидание
-    time.sleep(random() * 5 + 10)
-
 
 def get_pages_amount(html):
     """
@@ -153,6 +150,7 @@ def parse_district_pages(district_number, pages_amount, first_page):
     """
     global start_page_number
 
+    # Разбор первой страницы, если она уже передана
     if start_page_number == 1:
         parse_offers_page(district_number, 1, first_page)
     elif start_page_number <= pages_amount:
@@ -217,11 +215,14 @@ def delete_vip_blocks(html):
     :type html: BeautifulSoup
     :return:
     """
+    # Поиск div-обертки VIP-объявлений
     add_block = html.find('div', class_='items-vip-1naL1')
 
+    # Если VIP-объявлений нет, то выход
     if add_block is None:
         return
 
+    # Удаление блока из дерева
     add_block.decompose()
 
 
@@ -257,7 +258,7 @@ def parse_offers_list(offers):
 
     print(f'Обработано(-а) {start_id - first_id} квартир(-а/-ы).')
 
-    # Сохранение состояния
+    # Сохранение состояния и квартир
     save_last_position()
     save_flats_list()
 
